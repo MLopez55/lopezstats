@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LopezStats — Live NFL Scores</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0d0f12;
+    --card: #16191d;
+    --card-border: #24282e;
+    --line: #21252b;
+    --ink: #f4f5f6;
+    --ink-dim: #8b929c;
+    --accent: #f4c430;
+    --live: #ff5a36;
+    --radius: 12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px 60px;}
+
+  header.hero{
+    padding:44px 20px 24px;
+    text-align:center;
+  }
+  .brand{
+    font-family:'Anton',sans-serif;
+    font-size:clamp(2.1rem,5.5vw,3.2rem);
+    letter-spacing:1px;
+    color:var(--ink);
+    line-height:1;
+  }
+  .brand span{color:var(--accent);}
+  .tagline{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.75rem;
+    letter-spacing:2.5px;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-top:8px;
+  }
+
+  .ticker-outer{
+    overflow:hidden;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .ticker{
+    display:flex;
+    gap:40px;
+    white-space:nowrap;
+    padding:10px 0;
+    animation: scroll 40s linear infinite;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.8rem;
+    color:var(--ink-dim);
+  }
+  .ticker:hover{animation-play-state:paused;}
+  @keyframes scroll{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .tick-item .live-dot{color:var(--live);}
+
+  nav.tabs{
+    display:flex;
+    gap:6px;
+    padding:26px 0 20px;
+    flex-wrap:wrap;
+  }
+  .tab{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.75rem;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    padding:8px 15px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--ink-dim);
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .tab.active{ background:var(--ink); color:#0d0f12; border-color:var(--ink); font-weight:600;}
+  .tab:hover:not(.active){ border-color:var(--ink-dim); color:var(--ink); }
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .game-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+    gap:12px;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+
+  .card-meta{
+    display:flex; justify-content:space-between; align-items:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.68rem; letter-spacing:0.5px; text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:12px;
+  }
+  .status-live{ color:var(--live); font-weight:600;}
+  .status-live::before{ content:"● "; }
+
+  .matchup{ display:flex; flex-direction:column; gap:9px;}
+  .team-row{ display:flex; align-items:center; justify-content:space-between;}
+  .team-name{ display:flex; align-items:center; gap:9px; font-weight:600; font-size:0.92rem;}
+  .team-chip{
+    width:8px;height:22px;border-radius:3px;
+    flex-shrink:0;
+  }
+  .score{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:1.3rem; font-weight:600;
+    color:var(--ink);
+    min-width:32px; text-align:right;
+  }
+  .score.winning{ color:var(--accent); }
+
+  .winprob-bar{
+    height:4px; border-radius:2px; overflow:hidden;
+    display:flex; background:var(--line); margin-top:10px;
+  }
+  .winprob-bar div{height:100%;}
+  .winprob-labels{
+    display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;
+    font-size:0.65rem;color:var(--ink-dim);margin-top:4px;
+  }
+
+  .conf-block{ margin-bottom:24px;}
+  .conf-title{
+    font-family:'Anton',sans-serif; letter-spacing:1px; font-size:1.3rem;
+    color:var(--ink); margin-bottom:10px;
+  }
+  .div-title{
+    font-family:'IBM Plex Mono',monospace; font-size:0.68rem; letter-spacing:1.5px;
+    text-transform:uppercase; color:var(--ink-dim); margin:14px 0 6px;
+  }
+  table.standings{ width:100%; border-collapse:collapse; font-size:0.86rem;}
+  table.standings th{
+    text-align:left; font-family:'IBM Plex Mono',monospace; font-size:0.65rem;
+    color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.5px;
+    padding:6px 8px; border-bottom:1px solid var(--line);
+  }
+  table.standings td{ padding:7px 8px; border-bottom:1px solid var(--line);}
+  .clinch{ font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--accent); margin-left:6px;}
+
+  /* Ask AI section */
+  .ask-ai{
+    margin-top:36px;
+    background:var(--card);
+    border:1px solid var(--card-border);
+    border-radius:var(--radius);
+    padding:24px;
+  }
+  .ask-ai h2{
+    font-family:'Anton',sans-serif; font-size:1.4rem; letter-spacing:0.5px;
+    margin:0 0 6px;
+  }
+  .ask-ai p.sub{
+    color:var(--ink-dim); font-size:0.85rem; margin:0 0 16px;
+  }
+  .ask-row{ display:flex; gap:10px; flex-wrap:wrap;}
+  .ask-row textarea{
+    flex:1; min-width:220px;
+    background:#0d0f12; border:1px solid var(--card-border); border-radius:8px;
+    color:var(--ink); padding:12px; font-family:'IBM Plex Sans',sans-serif;
+    font-size:0.9rem; resize:vertical; min-height:44px;
+  }
+  .ask-row textarea:focus{ outline:none; border-color:var(--accent);}
+  .ask-btn{
+    background:var(--accent); color:#101010; border:none; border-radius:8px;
+    padding:0 22px; font-weight:600; font-family:'IBM Plex Sans',sans-serif;
+    cursor:pointer; font-size:0.9rem;
+  }
+  .ask-btn:disabled{ opacity:0.5; cursor:default; }
+  .ask-answer{
+    margin-top:16px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:0.92rem; line-height:1.55; color:var(--ink); display:none;
+  }
+  .ask-answer.show{ display:block; }
+  .ask-loading{ color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; font-size:0.8rem;}
+
+  footer{
+    text-align:center; padding:26px 0 6px; color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace; font-size:0.7rem;
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="brand">Lopez<span>Stats</span></div>
+  <div class="tagline">Live NFL scores · standings · AI predictions</div>
+</header>
+
+<div class="ticker-outer"><div class="ticker" id="ticker"></div></div>
+
+<div class="wrap">
+  <div style="display:flex;align-items:center;gap:12px;padding-top:20px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--ink-dim);">
+    <span id="last-updated">Loading scores…</span>
+    <button id="refresh-btn" style="background:transparent;border:1px solid var(--card-border);color:var(--ink-dim);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit;font-size:inherit;">Refresh now</button>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="live">Live &amp; Today</button>
+    <button class="tab" data-view="upcoming">Upcoming</button>
+    <button class="tab" data-view="final">Final</button>
+    <button class="tab" data-view="standings">Standings</button>
+  </nav>
+
+  <div class="view active" id="view-live"><div class="game-grid" id="grid-live"></div></div>
+  <div class="view" id="view-upcoming"><div class="game-grid" id="grid-upcoming"></div></div>
+  <div class="view" id="view-final"><div class="game-grid" id="grid-final"></div></div>
+  <div class="view" id="view-standings"><div id="standings-root"></div></div>
+
+  <div class="ask-ai">
+    <h2>Ask AI for a prediction</h2>
+    <p class="sub">Ask about any matchup, a team's outlook, or who to trust this week — the AI sees the current scores and standings.</p>
+    <div class="ask-row">
+      <textarea id="ask-input" placeholder="e.g. Who wins Chiefs vs Seahawks and why?"></textarea>
+      <button class="ask-btn" id="ask-btn">Ask</button>
+    </div>
+    <div class="ask-answer" id="ask-answer"></div>
+  </div>
+
+  <footer>Data snapshot from a Thursday night in the 2026 season</footer>
+</div>
+
+<script>
+const TEAM_COLORS = {
+  ARI:"#97233F", ATL:"#A71930", BAL:"#241773", BUF:"#00338D", CAR:"#0085CA",
+  CHI:"#0B162A", CIN:"#FB4F14", CLE:"#311D00", DAL:"#041E42", DEN:"#FB4F14",
+  DET:"#0076B6", GB:"#203731", HOU:"#03202F", IND:"#002C5F", JAC:"#006778",
+  KC:"#E31837", LA:"#003594", LAC:"#0080C6", LV:"#A5ACAF", MIA:"#008E97",
+  MIN:"#4F2683", NE:"#002244", NO:"#D3BC8D", NYG:"#0B2265", NYJ:"#125740",
+  PHI:"#004C54", PIT:"#FFB612", SEA:"#69BE28", SF:"#AA0000", TB:"#D50A0A",
+  TEN:"#4B92DB", WAS:"#5A1414"
+};
+
+// GAMES is now populated live from ESPN's public scoreboard feed (see fetchGames below),
+// instead of a fixed snapshot. It refreshes automatically every 30 seconds.
+let GAMES = [];
+let lastUpdated = null;
+
+// ESPN uses a few abbreviations that differ from ours — normalize them
+const ESPN_ABBR_MAP = { JAX:"JAC", LAR:"LA", WSH:"WAS" };
+function normalizeAbbr(a){ return ESPN_ABBR_MAP[a] || a; }
+
+async function fetchGames(){
+  try{
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard');
+    const data = await res.json();
+    GAMES = (data.events || []).map(mapESPNEvent);
+    lastUpdated = new Date();
+  }catch(err){
+    console.error('Live score fetch failed', err);
+    const stamp = document.getElementById('last-updated');
+    if(stamp) stamp.textContent = "Couldn't reach live scores — showing last known data.";
+  }
+}
+
+function mapESPNEvent(ev){
+  const comp = ev.competitions[0];
+  const home = comp.competitors.find(c=>c.homeAway==='home');
+  const away = comp.competitors.find(c=>c.homeAway==='away');
+  const homeAbbr = normalizeAbbr(home.team.abbreviation);
+  const awayAbbr = normalizeAbbr(away.team.abbreviation);
+  const state = comp.status.type.state; // "pre" | "in" | "post"
+
+  let status;
+  if(state === 'in') status = (comp.status.type.name === 'STATUS_HALFTIME') ? 'halftime' : 'inprogress';
+  else if(state === 'post') status = 'closed';
+  else status = 'scheduled';
+
+  const startDate = new Date(comp.date);
+  const local_start = startDate.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', timeZoneName:'short' });
+
+  const teams = {};
+  teams[homeAbbr] = home.team.displayName;
+  teams[awayAbbr] = away.team.displayName;
+
+  let score = null;
+  if(state !== 'pre'){
+    score = {};
+    score[homeAbbr] = parseInt(home.score || '0', 10);
+    score[awayAbbr] = parseInt(away.score || '0', 10);
+  }
+
+  return {
+    id: ev.id,
+    status,
+    home: homeAbbr,
+    away: awayAbbr,
+    teams,
+    score,
+    quarter: comp.status.period,
+    clock: comp.status.displayClock,
+    local_start
+  };
+}
+
+const STANDINGS = [
+{"team":"New York Giants","abbr":"NYG","w":4,"l":13,"conf":"NFC","div":"NFC East","clinch":"eliminated"},
+{"team":"Washington Commanders","abbr":"WAS","w":5,"l":12,"conf":"NFC","div":"NFC East","clinch":"eliminated"},
+{"team":"Philadelphia Eagles","abbr":"PHI","w":11,"l":6,"conf":"NFC","div":"NFC East","clinch":"division"},
+{"team":"Dallas Cowboys","abbr":"DAL","w":7,"l":9,"conf":"NFC","div":"NFC East","clinch":"eliminated"},
+{"team":"New Orleans Saints","abbr":"NO","w":6,"l":11,"conf":"NFC","div":"NFC South","clinch":"eliminated"},
+{"team":"Tampa Bay Buccaneers","abbr":"TB","w":8,"l":9,"conf":"NFC","div":"NFC South","clinch":"eliminated"},
+{"team":"Atlanta Falcons","abbr":"ATL","w":8,"l":9,"conf":"NFC","div":"NFC South","clinch":"eliminated"},
+{"team":"Carolina Panthers","abbr":"CAR","w":8,"l":9,"conf":"NFC","div":"NFC South","clinch":"division"},
+{"team":"Los Angeles Rams","abbr":"LA","w":12,"l":5,"conf":"NFC","div":"NFC West","clinch":"wildcard"},
+{"team":"Seattle Seahawks","abbr":"SEA","w":14,"l":3,"conf":"NFC","div":"NFC West","clinch":"conference"},
+{"team":"Arizona Cardinals","abbr":"ARI","w":3,"l":14,"conf":"NFC","div":"NFC West","clinch":"eliminated"},
+{"team":"San Francisco 49ers","abbr":"SF","w":12,"l":5,"conf":"NFC","div":"NFC West","clinch":"wildcard"},
+{"team":"Minnesota Vikings","abbr":"MIN","w":9,"l":8,"conf":"NFC","div":"NFC North","clinch":"eliminated"},
+{"team":"Chicago Bears","abbr":"CHI","w":11,"l":6,"conf":"NFC","div":"NFC North","clinch":"division"},
+{"team":"Green Bay Packers","abbr":"GB","w":9,"l":7,"conf":"NFC","div":"NFC North","clinch":"wildcard"},
+{"team":"Detroit Lions","abbr":"DET","w":9,"l":8,"conf":"NFC","div":"NFC North","clinch":"eliminated"},
+{"team":"Los Angeles Chargers","abbr":"LAC","w":11,"l":6,"conf":"AFC","div":"AFC West","clinch":"wildcard"},
+{"team":"Kansas City Chiefs","abbr":"KC","w":6,"l":11,"conf":"AFC","div":"AFC West","clinch":"eliminated"},
+{"team":"Las Vegas Raiders","abbr":"LV","w":3,"l":14,"conf":"AFC","div":"AFC West","clinch":"eliminated"},
+{"team":"Denver Broncos","abbr":"DEN","w":14,"l":3,"conf":"AFC","div":"AFC West","clinch":"conference"},
+{"team":"Miami Dolphins","abbr":"MIA","w":7,"l":10,"conf":"AFC","div":"AFC East","clinch":"eliminated"},
+{"team":"New York Jets","abbr":"NYJ","w":3,"l":14,"conf":"AFC","div":"AFC East","clinch":"eliminated"},
+{"team":"Buffalo Bills","abbr":"BUF","w":12,"l":5,"conf":"AFC","div":"AFC East","clinch":"wildcard"},
+{"team":"New England Patriots","abbr":"NE","w":14,"l":3,"conf":"AFC","div":"AFC East","clinch":"division"},
+{"team":"Indianapolis Colts","abbr":"IND","w":8,"l":9,"conf":"AFC","div":"AFC South","clinch":"eliminated"},
+{"team":"Houston Texans","abbr":"HOU","w":12,"l":5,"conf":"AFC","div":"AFC South","clinch":"wildcard"},
+{"team":"Tennessee Titans","abbr":"TEN","w":3,"l":14,"conf":"AFC","div":"AFC South","clinch":"eliminated"},
+{"team":"Jacksonville Jaguars","abbr":"JAC","w":13,"l":4,"conf":"AFC","div":"AFC South","clinch":"division"},
+{"team":"Cincinnati Bengals","abbr":"CIN","w":6,"l":11,"conf":"AFC","div":"AFC North","clinch":"eliminated"},
+{"team":"Pittsburgh Steelers","abbr":"PIT","w":10,"l":7,"conf":"AFC","div":"AFC North","clinch":"division"},
+{"team":"Cleveland Browns","abbr":"CLE","w":5,"l":12,"conf":"AFC","div":"AFC North","clinch":"eliminated"},
+{"team":"Baltimore Ravens","abbr":"BAL","w":8,"l":9,"conf":"AFC","div":"AFC North","clinch":"eliminated"}
+];
+
+const LIVE_STATUSES = ["inprogress","halftime"];
+
+function statusLabel(g){
+  if(g.status==="inprogress") return `Q${g.quarter} · ${g.clock}`;
+  if(g.status==="halftime") return "Halftime";
+  if(g.status==="closed") return "Final";
+  return g.local_start;
+}
+
+function teamRow(g, abbr){
+  const other = abbr===g.home ? g.away : g.home;
+  const score = g.score ? g.score[abbr] : null;
+  const otherScore = g.score ? g.score[other] : null;
+  const winning = score!==null && otherScore!==null && score>otherScore;
+  const color = TEAM_COLORS[abbr] || "#666";
+  return `<div class="team-row">
+    <div class="team-name"><span class="team-chip" style="background:${color}"></span>${g.teams[abbr]}</div>
+    ${score!==null ? `<div class="score ${winning?'winning':''}">${score}</div>` : ''}
+  </div>`;
+}
+
+function winProbBar(g){
+  if(!g.win_probability) return '';
+  const away = g.win_probability[g.away] ?? 50;
+  const home = g.win_probability[g.home] ?? 50;
+  const awayColor = TEAM_COLORS[g.away] || "#666";
+  const homeColor = TEAM_COLORS[g.home] || "#666";
+  return `<div class="winprob-bar">
+    <div style="width:${away}%; background:${awayColor}"></div>
+    <div style="width:${home}%; background:${homeColor}"></div>
+  </div>
+  <div class="winprob-labels"><span>${g.away} ${away}%</span><span>${g.home} ${home}%</span></div>`;
+}
+
+function renderCard(g){
+  const div = document.createElement('div');
+  div.className = 'card';
+  const statusHtml = LIVE_STATUSES.includes(g.status)
+    ? `<span class="status-live">${statusLabel(g)}</span>`
+    : `<span>${statusLabel(g)}</span>`;
+  div.innerHTML = `
+    <div class="card-meta">${statusHtml}<span>${g.local_start.split(',')[0]}</span></div>
+    <div class="matchup">${teamRow(g,g.away)}${teamRow(g,g.home)}</div>
+    ${winProbBar(g)}
+  `;
+  return div;
+}
+
+function populate(){
+  const live = GAMES.filter(g=>LIVE_STATUSES.includes(g.status));
+  const upcoming = GAMES.filter(g=>g.status==="created"||g.status==="scheduled");
+  const final = GAMES.filter(g=>g.status==="closed");
+
+  const gridLive = document.getElementById('grid-live');
+  const gridUpcoming = document.getElementById('grid-upcoming');
+  const gridFinal = document.getElementById('grid-final');
+  gridLive.innerHTML = '';
+  gridUpcoming.innerHTML = '';
+  gridFinal.innerHTML = '';
+
+  live.forEach(g=>gridLive.appendChild(renderCard(g)));
+  if(live.length===0) gridLive.innerHTML = '<p style="color:var(--ink-dim)">No games live right now — check Upcoming.</p>';
+  upcoming.forEach(g=>gridUpcoming.appendChild(renderCard(g)));
+  final.slice().reverse().forEach(g=>gridFinal.appendChild(renderCard(g)));
+
+  const ticker = document.getElementById('ticker');
+  const items = live.length ? live : final.slice(0,8);
+  const tickerHtml = items.map(g=>{
+    const s = g.score ? `${g.away} ${g.score[g.away]} – ${g.score[g.home]} ${g.home}` : `${g.away} @ ${g.home}`;
+    const tag = LIVE_STATUSES.includes(g.status) ? `<span class="live-dot">●</span> ${statusLabel(g)} · ` : '';
+    return `<span class="tick-item">${tag}${s}</span>`;
+  }).join('');
+  ticker.innerHTML = tickerHtml + tickerHtml;
+
+  renderStandings();
+}
+
+function renderStandings(){
+  const root = document.getElementById('standings-root');
+  root.innerHTML = '';
+  ["AFC","NFC"].forEach(conf=>{
+    const block = document.createElement('div');
+    block.className = 'conf-block';
+    block.innerHTML = `<div class="conf-title">${conf}</div>`;
+    const divisions = [...new Set(STANDINGS.filter(t=>t.conf===conf).map(t=>t.div))];
+    divisions.forEach(div=>{
+      const teams = STANDINGS.filter(t=>t.div===div).sort((a,b)=>b.w-a.w || a.l-b.l);
+      const divHtml = document.createElement('div');
+      divHtml.innerHTML = `<div class="div-title">${div}</div>
+        <table class="standings">
+          <thead><tr><th>Team</th><th>W</th><th>L</th><th>Pct</th></tr></thead>
+          <tbody>
+            ${teams.map(t=>`<tr>
+              <td>${t.team}${t.clinch && t.clinch!=='eliminated' ? `<span class="clinch">${t.clinch==='conference'?'z':t.clinch==='division'?'y':'x'}</span>`:''}</td>
+              <td>${t.w}</td><td>${t.l}</td><td>${(t.w/(t.w+t.l)).toFixed(3)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+      block.appendChild(divHtml);
+    });
+    root.appendChild(block);
+  });
+}
+
+// Compute each team's recent form: last 3 finished games, W/L string + avg point differential
+function computeTeamForm(abbr){
+  const played = GAMES.filter(g => g.status === 'closed' && (g.home === abbr || g.away === abbr))
+    .slice(-3);
+  if(played.length === 0) return 'no completed games yet';
+  let diffs = [];
+  const results = played.map(g=>{
+    const isHome = g.home === abbr;
+    const own = g.score[abbr];
+    const opp = g.score[isHome ? g.away : g.home];
+    diffs.push(own - opp);
+    return `${own>opp?'W':'L'} ${own}-${opp} vs ${isHome? g.away : g.home}`;
+  });
+  const avgDiff = (diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1);
+  return `last ${played.length}: ${results.join(', ')} (avg margin ${avgDiff>=0?'+':''}${avgDiff})`;
+}
+
+// Ask AI — a single bottom prediction box that gets full standings + recent-form context
+async function askAI(){
+  const input = document.getElementById('ask-input');
+  const btn = document.getElementById('ask-btn');
+  const answerEl = document.getElementById('ask-answer');
+  const question = input.value.trim();
+  if(!question) return;
+
+  btn.disabled = true;
+  answerEl.classList.add('show');
+  answerEl.innerHTML = '<span class="ask-loading">Crunching records and recent form…</span>';
+
+  const contextSummary = STANDINGS.map(t=>`${t.abbr} ${t.w}-${t.l} (${computeTeamForm(t.abbr)})`).join('; ');
+  const liveSummary = GAMES.filter(g=>LIVE_STATUSES.includes(g.status) || g.status==='created' || g.status==='scheduled')
+    .map(g=> g.score ? `${g.away} ${g.score[g.away]}-${g.score[g.home]} ${g.home} (${statusLabel(g)})` : `${g.away} @ ${g.home} (${g.local_start})`)
+    .join('; ');
+
+  const prompt = `You are a precise, data-driven NFL analyst. Ground every claim in the specific numbers given below — never guess or invent stats.
+Team records and recent form (last 3 games + average scoring margin): ${contextSummary}.
+Live/upcoming games: ${liveSummary}.
+Question: ${question}
+Answer in 2-4 sentences. Cite at least one specific number (record, margin, or score) that supports your reasoning. Be direct and specific rather than vague or hedging. No hashtags.`;
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        temperature: 0.2,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).map(c=>c.text||'').join(' ').trim();
+    answerEl.textContent = text || "Couldn't generate a prediction — try rephrasing your question.";
+  }catch(err){
+    answerEl.textContent = "Couldn't reach the AI analyst — try again.";
+  }
+  btn.disabled = false;
+}
+
+document.getElementById('ask-btn').addEventListener('click', askAI);
+document.getElementById('ask-input').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); askAI(); }
+});
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('view-'+tab.dataset.view).classList.add('active');
+  });
+});
+
+async function refreshAndRender(){
+  await fetchGames();
+  populate();
+  const stamp = document.getElementById('last-updated');
+  if(stamp && lastUpdated) stamp.textContent = 'Live scores updated ' + lastUpdated.toLocaleTimeString();
+}
+
+document.getElementById('refresh-btn').addEventListener('click', refreshAndRender);
+
+refreshAndRender();
+setInterval(refreshAndRender, 30000); // auto-refresh every 30 seconds
+</script>
+</body>
+</html>
